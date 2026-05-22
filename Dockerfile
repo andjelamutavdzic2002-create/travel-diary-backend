@@ -10,6 +10,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
 COPY --from=build /app/publish .
+COPY firebase-service-account.json /app/firebase-service-account.json
 
 ENV ASPNETCORE_URLS=http://+:10000
 
