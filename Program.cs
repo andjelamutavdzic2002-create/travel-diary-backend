@@ -15,60 +15,40 @@ builder.Services.AddSwaggerGen();
 var firebaseProjectId = builder.Configuration["Firebase:ProjectId"];
 var firebaseJson = Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_JSON");
 
-if (!string.IsNullOrWhiteSpace(firebaseJson))
+builder.Services.AddSingleton(_ =>
 {
-    var credential = GoogleCredential.FromJson(firebaseJson);
+    GoogleCredential credential;
 
-    FirebaseApp.Create(new AppOptions
+    if (!string.IsNullOrWhiteSpace(firebaseJson))
     {
-        Credential = credential
-    });
-
-    builder.Services.AddSingleton(_ =>
+        credential = GoogleCredential.FromJson(firebaseJson);
+    }
+    else
     {
-        return new FirestoreDbBuilder
-        {
-            ProjectId = firebaseProjectId,
-            Credential = credential
-        }.Build();
-    });
-}
-else
-{
-    var firebaseCredentialsPath = builder.Configuration["Firebase:CredentialsPath"];
+        var firebaseCredentialsPath = builder.Configuration["Firebase:CredentialsPath"];
+        credential = GoogleCredential.FromFile(firebaseCredentialsPath);
+    }
 
-    if (!string.IsNullOrWhiteSpace(firebaseCredentialsPath) && File.Exists(firebaseCredentialsPath))
+    if (FirebaseApp.DefaultInstance == null)
     {
-        var credential = GoogleCredential.FromFile(firebaseCredentialsPath);
-
         FirebaseApp.Create(new AppOptions
         {
             Credential = credential
         });
+    }
 
-        builder.Services.AddSingleton(_ =>
-        {
-            return new FirestoreDbBuilder
-            {
-                ProjectId = firebaseProjectId,
-                Credential = credential
-            }.Build();
-        });
-    }
-    else
+    return new FirestoreDbBuilder
     {
-        builder.Services.AddSingleton(_ =>
-        {
-            return FirestoreDb.Create(firebaseProjectId);
-        });
-    }
-}
+        ProjectId = firebaseProjectId,
+        Credential = credential
+    }.Build();
+});
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<TravelService>();
 
-var jwtKey = builder.Configuration["Jwt:Key"]!;
-var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+var jwtKey = builder.Configuration["Jwt:Key"];
+var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
