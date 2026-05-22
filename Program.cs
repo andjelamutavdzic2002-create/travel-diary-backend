@@ -21,7 +21,17 @@ if (!string.IsNullOrWhiteSpace(firebaseCredentialsPath) && File.Exists(firebaseC
     FirebaseApp.Create(new AppOptions { Credential = GoogleCredential.FromFile(firebaseCredentialsPath) });
 }
 
-builder.Services.AddSingleton(_ => FirestoreDb.Create(firebaseProjectId));
+builder.Services.AddSingleton(_ =>
+{
+    var credential = GoogleCredential.FromFile(firebaseCredentialsPath);
+
+    return new FirestoreDbBuilder
+    {
+        ProjectId = firebaseProjectId,
+        Credential = credential
+    }.Build();
+});
+
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<TravelService>();
 
