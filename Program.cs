@@ -13,24 +13,56 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var firebaseProjectId = builder.Configuration["Firebase:ProjectId"];
-var firebaseCredentialsPath = builder.Configuration["Firebase:CredentialsPath"];
+var firebaseJson = Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_JSON");
 
-if (!string.IsNullOrWhiteSpace(firebaseCredentialsPath) && File.Exists(firebaseCredentialsPath))
+if (!string.IsNullOrWhiteSpace(firebaseJson))
 {
-    Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", firebaseCredentialsPath);
-    FirebaseApp.Create(new AppOptions { Credential = GoogleCredential.FromFile(firebaseCredentialsPath) });
-}
+    var credential = GoogleCredential.FromJson(firebaseJson);
 
-builder.Services.AddSingleton(_ =>
-{
-    var credential = GoogleCredential.FromFile(firebaseCredentialsPath);
-
-    return new FirestoreDbBuilder
+    FirebaseApp.Create(new AppOptions
     {
-        ProjectId = firebaseProjectId,
         Credential = credential
-    }.Build();
-});
+    });
+
+    builder.Services.AddSingleton(_ =>
+    {
+        return new FirestoreDbBuilder
+        {
+            ProjectId = firebaseProjectId,
+            Credential = credential
+        }.Build();
+    });
+}
+else
+{
+    var firebaseCredentialsPath = builder.Configuration["Firebase:CredentialsPath"];
+
+    if (!string.IsNullOrWhiteSpace(firebaseCredentialsPath) && File.Exists(firebaseCredentialsPath))
+    {
+        var credential = GoogleCredential.FromFile(firebaseCredentialsPath);
+
+        FirebaseApp.Create(new AppOptions
+        {
+            Credential = credential
+        });
+
+        builder.Services.AddSingleton(_ =>
+        {
+            return new FirestoreDbBuilder
+            {
+                ProjectId = firebaseProjectId,
+                Credential = credential
+            }.Build();
+        });
+    }
+    else
+    {
+        builder.Services.AddSingleton(_ =>
+        {
+            return FirestoreDb.Create(firebaseProjectId);
+        });
+    }
+}
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<TravelService>();
@@ -59,7 +91,9 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
     {
-        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
@@ -67,8 +101,12 @@ var app = builder.Build();
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
 app.UseCors("AllowAngular");
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
+
 app.Run();
